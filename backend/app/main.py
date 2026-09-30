@@ -1,5 +1,5 @@
 """
-EVARA — Backend entrypoint (Phase 2: Conversation Engine).
+EVARA — Backend entrypoint (Phase 4: Reports, Planner, Dashboard & Progress).
 
 Provides:
     GET    /health
@@ -11,10 +11,21 @@ Provides:
     GET    /api/conversations/{conversation_id}
     POST   /api/conversations/{conversation_id}/messages
     DELETE /api/conversations/{conversation_id}
+    POST   /api/analysis/{conversation_id}/generate
+    GET    /api/analysis/{conversation_id}
+    POST   /api/reports/{conversation_id}/generate
+    GET    /api/reports/{conversation_id}
+    POST   /api/planner
+    GET    /api/planner
+    GET    /api/planner/{plan_id}
+    PATCH  /api/planner/{plan_id}
+    POST   /api/planner/{plan_id}/complete
+    DELETE /api/planner/{plan_id}
+    GET    /api/dashboard
+    GET    /api/progress
 
-Later phases will register additional routers (analysis, dashboard,
-planner, progress, professionals) from app/api/*.py without modifying
-this file's structure.
+Later phases will register additional routers (professionals, etc.)
+from app/api/*.py without modifying this file's structure.
 """
 
 from contextlib import asynccontextmanager
@@ -25,8 +36,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.analysis import router as analysis_router
 from app.api.auth import router as auth_router
 from app.api.conversations import router as conversations_router
+from app.api.dashboard import router as dashboard_router
+from app.api.planner import router as planner_router
+from app.api.progress import router as progress_router
+from app.api.reports import router as reports_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.database.connection import close_mongo_connection, connect_to_mongo
@@ -55,7 +71,7 @@ app = FastAPI(
         "wellbeing-support and reflection system. This is a prototype "
         "and is not a substitute for professional mental-health care."
     ),
-    version="0.2.0-phase2",
+    version="0.4.0-phase4",
     lifespan=lifespan,
 )
 
@@ -100,6 +116,11 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 app.include_router(auth_router)
 app.include_router(conversations_router)
+app.include_router(analysis_router)
+app.include_router(reports_router)
+app.include_router(planner_router)
+app.include_router(dashboard_router)
+app.include_router(progress_router)
 
 
 # --- Health --------------------------------------------------------------

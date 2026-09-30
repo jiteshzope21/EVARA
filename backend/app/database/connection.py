@@ -56,6 +56,25 @@ async def _ensure_indexes() -> None:
     # covers both the ownership lookup and the sort.
     await database.db["conversations"].create_index([("user_id", 1), ("updated_at", -1)])
 
+    # Phase 3: analyses are always queried scoped to owner + conversation,
+    # and the "latest analysis" lookup sorts by created_at descending.
+    await database.db["analyses"].create_index(
+        [("conversation_id", 1), ("user_id", 1), ("created_at", -1)]
+    )
+
+    # Phase 4: reports follow the exact same access pattern as analyses
+    # (scoped to owner + conversation, latest-first).
+    await database.db["reports"].create_index(
+        [("conversation_id", 1), ("user_id", 1), ("created_at", -1)]
+    )
+    # A user's own reports are also listed on their own (dashboard "recent
+    # reports"), independent of any one conversation.
+    await database.db["reports"].create_index([("user_id", 1), ("created_at", -1)])
+
+    # Phase 4: plans are queried scoped to owner, optionally filtered by
+    # status, and listed newest-first.
+    await database.db["plans"].create_index([("user_id", 1), ("status", 1), ("created_at", -1)])
+
 
 def get_database() -> AsyncIOMotorDatabase:
     """
