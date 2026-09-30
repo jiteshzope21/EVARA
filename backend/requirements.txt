@@ -1,0 +1,34 @@
+# Phase 1 — Backend Foundation dependencies
+
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+pydantic-settings==2.5.2
+motor==3.6.0
+pymongo==4.9.1
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.2.0
+python-dotenv==1.0.1
+python-multipart==0.0.9
+email-validator==2.2.0
+
+# Phase 3 — NLP / LMTA engine dependencies.
+# scikit-learn is used for: TF-IDF vectorization (app/nlp/tfidf.py) and
+# the TF-IDF + Logistic Regression intent classifier (app/nlp/intent.py).
+# numpy is a direct dependency of scikit-learn's array operations, used
+# directly in app/nlp/semantics.py for cosine similarity.
+scikit-learn==1.8.0
+numpy==2.4.4
+
+# Phase 3 CORRECTION — transformer embeddings (app/nlp/embeddings.py).
+# Replaces the original HashingVectorizer-based embedding (which was not
+# a transformer embedding and did not satisfy the spec) with a real
+# sentence-transformers model: sentence-transformers/all-MiniLM-L6-v2
+# (384 dimensions). This single package transitively pulls in torch and
+# transformers (both required to actually run the model) — no other new
+# top-level dependency was added. See app/nlp/embeddings.py's module
+# docstring for the exact environmental limitation this build hit
+# (huggingface.co unreachable in this sandbox) and what changes once
+# that access is available.
+sentence-transformers==6.1.0
