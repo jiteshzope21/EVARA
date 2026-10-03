@@ -29,3 +29,9 @@ Thumbs.db
 # ML / model cache
 .cache/
 huggingface/
+
+# Node / Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
