@@ -1,0 +1,74 @@
+===============================================================================
+EVARA — PHASE 5 COMPLETION REPORT
+Subsystem: Small Language Model (SLM) + Synthetic Dataset + Fine-Tuning
+===============================================================================
+
+1. STATUS SUMMARY
+-------------------------------------------------------------------------------
+- Implementation Status: Complete
+- Phase 1-4 Baseline Status: Locked and Preserved (Zero Regressions)
+- Phase 5 Test Suite Result: 220 Passed, 1 Skipped (Opt-in Real-Model Smoke Test), 0 Failed
+- Phase Boundary: Phase 6 & Phase 7 are completely untouched.
+
+2. CONFIGURATION FIELDS & MAPPING (backend/app/core/config.py)
+-------------------------------------------------------------------------------
+Settings Fields:
+- mock_slm: bool = True
+  * Default: True (safe default for CI / offline test runs)
+  * Env Mapping: MOCK_SLM (case-insensitive via pydantic-settings)
+  * Production Usage: Set MOCK_SLM=false in production to engage real model inference.
+
+- slm_model: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+  * Default: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+  * Env Mapping: SLM_MODEL (case-insensitive via pydantic-settings)
+  * Production Usage: Can point to base HuggingFace model or locally merged LoRA checkpoint.
+
+- hf_token: str = ""
+  * Default: ""
+  * Env Mapping: HF_TOKEN
+
+3. TEST SUITE RESULTS
+-------------------------------------------------------------------------------
+Test Command:
+  .venv\Scripts\python.exe -m pytest tests/ -v --tb=short
+
+Summary:
+  tests/test_phase1.py               25 passed
+  tests/test_phase2_conversations.py 25 passed
+  tests/test_phase3_nlp.py           42 passed
+  tests/test_phase4_reasoning.py     47 passed
+  tests/test_phase5_dataset.py       19 passed
+  tests/test_phase5_integration.py   22 passed
+  tests/test_phase5_slm.py           40 passed, 1 skipped
+  =============================================================================
+  Total: 220 passed, 1 skipped in 86.70s
+
+4. ARCHITECTURAL HIGHLIGHTS
+-------------------------------------------------------------------------------
+- Base Model: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+- Prompting Format: ChatML (<|system|>, <|user|>, <|assistant|>)
+- Context Bounding: Input strictly bounded to GenerationContext with maximum
+  6 recent conversation messages. No database dumps, passwords, or PII exposed.
+- System Guardrails: Non-clinical framing; explicit prohibitions against diagnosis,
+  medical claims, and medication recommendations.
+- Validation: Deterministic regex validator checking for empty output, prompt
+  leakage, diagnostic claims, medication recommendations, medical directives,
+  and unsafe crisis content.
+- Urgent Safety Bypass: Bypasses SLM generation entirely when safety level is
+  'urgent' or policy is 'escalate_urgent', returning deterministic crisis support.
+- Model Fallback Policy:
+  Production SLM inference NEVER silently falls back to mock generation.
+  If model loading fails when MOCK_SLM=false, an HTTP 503 SERVICE UNAVAILABLE
+  error is raised. Mock mode is strictly governed by the explicit MOCK_SLM configuration.
+- Fine-Tuning Separation:
+  The training pipeline (LoRA via PEFT / TRL SFTTrainer) is completely isolated
+  in backend/training/ and never executed by the FastAPI server runtime.
+
+5. REAL-MODEL SMOKE TEST COMMAND
+-------------------------------------------------------------------------------
+PowerShell:
+  $env:EVARA_REAL_MODEL_TEST="1"; .venv\Scripts\python.exe -m pytest tests/test_phase5_slm.py::TestRealModelSmoke -v
+
+Bash:
+  EVARA_REAL_MODEL_TEST=1 .venv/bin/pytest tests/test_phase5_slm.py::TestRealModelSmoke -v
+===============================================================================

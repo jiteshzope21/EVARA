@@ -1,0 +1,84 @@
+===============================================================================
+EVARA — PHASE 5 INTEGRATION MANIFEST
+Baseline Commit: d60e8f5 (Phase 4 baseline)
+===============================================================================
+
+MODIFIED FILES (from Phase 4 baseline):
+-------------------------------------------------------------------------------
+1. backend/.gitignore
+   - Added ignores for LoRA output directories (training/output/),
+     HuggingFace model cache, training checkpoints, processed dataset splits,
+     and large generated datasets.
+
+2. backend/app/core/config.py
+   - Wired Phase 5 default model for SLM:
+     slm_model: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+     mock_slm: bool = True
+     hf_token: str = ""
+   - Configurable via SLM_MODEL and MOCK_SLM environment variables.
+
+3. backend/app/database/connection.py
+   - Added Phase 5 index on 'slm_generations' collection:
+     ("conversation_id", ASCENDING), ("created_at", DESCENDING).
+
+4. backend/app/main.py
+   - Mounted Phase 5 router: app.include_router(slm_router).
+   - Bumped API version to 0.5.0-phase5.
+   - Updated docstring with POST /api/slm/{conversation_id}/generate.
+
+5. backend/app/slm/__init__.py
+   - Replaced Phase 4 stub with full Phase 5 public export:
+     SLMConfig, GenerationContext, RecentMessage, NLPSignals,
+     context_from_nlp_and_safety, run_inference, InferenceResult,
+     load_model, unload_model, is_model_loaded, validate_response,
+     strip_prompt_echo, ValidationResult.
+
+6. backend/requirements.txt
+   - Added explicit Phase 5 SLM inference packages:
+     torch, transformers.
+   - Listed optional training packages: peft, trl, datasets, accelerate.
+
+NEW FILES (Phase 5):
+-------------------------------------------------------------------------------
+Core SLM Package (backend/app/slm/):
+1. backend/app/slm/config.py
+   - SLM configuration dataclass (TinyLlama-1.1B-Chat, token limits, sampling parameters).
+2. backend/app/slm/model.py
+   - Singleton model loader/unloader with deterministic device detection (cuda/mps/cpu).
+3. backend/app/slm/prompting.py
+   - Structured GenerationContext, 8-stage guidance conditioning, ChatML formatting.
+4. backend/app/slm/validation.py
+   - Deterministic rule-based response validation and prompt echo stripping.
+5. backend/app/slm/inference.py
+   - Inference execution, urgent safety bypass, deterministic policy fallback.
+
+Service & API Layer:
+6. backend/app/models/slm.py
+   - Pydantic SLMGenerateResponse schema.
+7. backend/app/services/slm_service.py
+   - Pipeline orchestrator: ownership check -> NLP -> safety -> evidence -> policy -> SLM -> validation -> persistence.
+8. backend/app/api/slm.py
+   - POST /api/slm/{conversation_id}/generate authenticated endpoint.
+
+Synthetic Dataset & Training Pipeline:
+9. backend/training/__init__.py
+   - Package marker.
+10. backend/training/generate_dataset.py
+    - Curated synthetic conversation dataset generator across 8 stages and 9 themes.
+11. backend/training/validate_dataset.py
+    - Strict JSONL dataset schema and content validator.
+12. backend/training/prepare_dataset.py
+    - 80/20 train/validation split exporter.
+13. backend/training/train_slm.py
+    - Standalone LoRA/PEFT SFT training script (completely separated from inference).
+14. backend/data/synthetic/evara_synthetic.jsonl
+    - Generated, validated synthetic seed dataset.
+
+Test Suites:
+15. backend/tests/test_phase5_dataset.py
+    - 19 tests for generation, validation, splitting, duplicate handling.
+16. backend/tests/test_phase5_slm.py
+    - 40 passed unit tests, 1 opted-in real-model smoke test (skipped by default).
+17. backend/tests/test_phase5_integration.py
+    - 22 tests covering auth, ownership, bypass, structure, persistence, health, and regression.
+===============================================================================
