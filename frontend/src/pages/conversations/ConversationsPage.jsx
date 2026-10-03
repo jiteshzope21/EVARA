@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import conversationService from '../../services/conversationService';
+import slmService from '../../services/slmService';
 import { getErrorMessage } from '../../services/api';
 import {
   MessageSquare,
@@ -13,6 +14,10 @@ import {
   ArrowLeft,
   ChevronRight,
   Info,
+  Sparkles,
+  Copy,
+  Check,
+  X,
 } from 'lucide-react';
 
 const STAGE_ORDER = [
@@ -52,6 +57,13 @@ export default function ConversationsPage() {
   const [error, setError] = useState(null);
   const [sendError, setSendError] = useState(null);
 
+  // SLM Assistant state
+  const [slmLoading, setSlmLoading] = useState(false);
+  const [slmResult, setSlmResult] = useState(null);
+  const [slmError, setSlmError] = useState(null);
+  const [showSlmPanel, setShowSlmPanel] = useState(false);
+  const [copiedSlm, setCopiedSlm] = useState(false);
+
   // Mobile view toggle: 'list' or 'chat'
   const [mobileView, setMobileView] = useState('list');
 
@@ -86,6 +98,9 @@ export default function ConversationsPage() {
   useEffect(() => {
     if (!selectedId) {
       setActiveConversation(null);
+      setSlmResult(null);
+      setShowSlmPanel(false);
+      setSlmError(null);
       return;
     }
 
@@ -93,6 +108,9 @@ export default function ConversationsPage() {
     async function fetchDetail() {
       setLoadingDetail(true);
       setSendError(null);
+      setSlmResult(null);
+      setShowSlmPanel(false);
+      setSlmError(null);
       try {
         const detail = await conversationService.getConversation(selectedId);
         if (isMounted) {
@@ -101,7 +119,6 @@ export default function ConversationsPage() {
         }
       } catch (err) {
         if (isMounted) {
-          // If 404 or not found, deselect and reload list
           setSelectedId(null);
           loadConversations();
         }
@@ -130,6 +147,10 @@ export default function ConversationsPage() {
       scrollToBottom(true);
     }
   }, [activeConversation?.messages]);
+
+  // Count user messages to guard SLM trigger
+  const userMessages = activeConversation?.messages?.filter((m) => m.role === 'user') || [];
+  const hasUserMessages = userMessages.length > 0;
 
   // Create new conversation session
   const handleCreateSession = async () => {
@@ -202,6 +223,38 @@ export default function ConversationsPage() {
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  // SLM Generation Handler
+  const handleGenerateSLM = async () => {
+    if (!selectedId || slmLoading || !hasUserMessages) return;
+    setShowSlmPanel(true);
+    setSlmLoading(true);
+    setSlmError(null);
+    try {
+      const result = await slmService.generate(selectedId, false);
+      setSlmResult(result);
+    } catch (err) {
+      setSlmError(getErrorMessage(err));
+    } finally {
+      setSlmLoading(false);
+    }
+  };
+
+  const handleCopySLM = async () => {
+    if (!slmResult?.text) return;
+    try {
+      await navigator.clipboard.writeText(slmResult.text);
+      setCopiedSlm(true);
+      setTimeout(() => setCopiedSlm(false), 2000);
+    } catch (err) {
+      // Ignore clipboard write error
+    }
+  };
+
+  const handleUseInComposer = () => {
+    if (!slmResult?.text) return;
+    setInputContent((prev) => (prev ? `${prev}\n\n${slmResult.text}` : slmResult.text));
   };
 
   // Delete conversation
@@ -414,11 +467,177 @@ export default function ConversationsPage() {
                   </div>
                 </div>
 
-                <div className="hidden lg:flex items-center space-x-1 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg flex-shrink-0">
-                  <ShieldAlert className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                  <span>Academic Reflection Dialogue</span>
+                <div className="flex items-center space-x-2 flex-shrink-0">
+                  {/* On-Demand SLM Reflection Assistant Trigger */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!showSlmPanel) {
+                        handleGenerateSLM();
+                      } else {
+                        setShowSlmPanel(false);
+                      }
+                    }}
+                    disabled={!hasUserMessages || slmLoading}
+                    className={`flex items-center space-x-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border transition-colors ${
+                      showSlmPanel
+                        ? 'bg-purple-600 text-white border-purple-600'
+                        : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    title={
+                      hasUserMessages
+                        ? 'Request on-demand SLM reflection assistant insight'
+                        : 'Send at least one message to use SLM reflection'
+                    }
+                  >
+                    {slmLoading ? (
+                      <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <Sparkles className="w-3.5 h-3.5" />
+                    )}
+                    <span className="hidden sm:inline">SLM Assistant</span>
+                  </button>
+
+                  <div className="hidden lg:flex items-center space-x-1 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                    <span>Academic Dialogue</span>
+                  </div>
                 </div>
               </div>
+
+              {/* SLM Reflection Assistant Panel */}
+              {showSlmPanel && (
+                <div className="border-b border-purple-200 bg-purple-50/80 p-3.5 md:p-4 flex-shrink-0 transition-all">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                      <span className="flex items-center space-x-1.5 text-xs font-bold text-purple-900">
+                        <Sparkles className="w-4 h-4 text-purple-600" />
+                        <span>Local SLM Reflection Assistant</span>
+                      </span>
+                      {slmResult && (
+                        <>
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium bg-white border border-purple-200 text-purple-800 rounded">
+                            {slmResult.model}
+                          </span>
+                          <span
+                            className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${
+                              slmResult.mock
+                                ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            }`}
+                          >
+                            {slmResult.mock ? 'Mock Mode' : 'Real Model'}
+                          </span>
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium bg-white text-slate-700 border border-slate-200 rounded">
+                            Safety: {slmResult.safety_level}
+                          </span>
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium bg-white text-slate-700 border border-slate-200 rounded">
+                            Policy: {slmResult.policy_used}
+                          </span>
+                          {slmResult.validated && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded flex items-center space-x-0.5">
+                              <Check className="w-3 h-3 text-emerald-600" />
+                              <span>Validated</span>
+                            </span>
+                          )}
+                          {slmResult.duration_ms != null && (
+                            <span className="text-[10px] text-slate-500 font-mono">
+                              {Math.round(slmResult.duration_ms)}ms
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowSlmPanel(false)}
+                      className="text-slate-400 hover:text-slate-600 p-1 rounded"
+                      aria-label="Close SLM panel"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {slmLoading ? (
+                    <div className="flex items-center space-x-2.5 py-3 text-xs text-purple-800">
+                      <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                      <span>
+                        Running Phase 5 pipeline (NLP analysis → safety check → response policy → generation → validation)...
+                      </span>
+                    </div>
+                  ) : slmError ? (
+                    <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 flex items-center justify-between">
+                      <span>{slmError}</span>
+                      <button
+                        type="button"
+                        onClick={handleGenerateSLM}
+                        className="text-xs font-semibold underline hover:text-rose-900 ml-2"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  ) : slmResult ? (
+                    <div className="space-y-2.5">
+                      {slmResult.safety_bypass && (
+                        <div className="p-2 bg-amber-100 border border-amber-300 rounded text-xs text-amber-900 font-medium flex items-center space-x-2">
+                          <ShieldAlert className="w-3.5 h-3.5 text-amber-700 flex-shrink-0" />
+                          <span>Urgent safety bypass applied. Policy guidance returned.</span>
+                        </div>
+                      )}
+                      {slmResult.warnings && slmResult.warnings.length > 0 && (
+                        <div className="text-[10px] text-purple-700 bg-purple-100/60 p-2 rounded border border-purple-200">
+                          {slmResult.warnings.map((w, i) => (
+                            <p key={i}>• {w}</p>
+                          ))}
+                        </div>
+                      )}
+                      <div className="p-3 bg-white border border-purple-200 rounded-lg text-xs sm:text-sm text-slate-800 whitespace-pre-wrap leading-relaxed shadow-2xs">
+                        {slmResult.text}
+                      </div>
+                      <div className="flex items-center justify-between flex-wrap gap-2 text-xs pt-1">
+                        <p className="text-[10px] text-slate-500">
+                          Academic reflection assistant. Does not modify conversation messages or advance dialogue stages.
+                        </p>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            type="button"
+                            onClick={handleCopySLM}
+                            className="flex items-center space-x-1 px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors shadow-2xs"
+                          >
+                            {copiedSlm ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-600" />
+                                <span>Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleUseInComposer}
+                            className="flex items-center space-x-1 px-2.5 py-1 text-xs font-medium text-purple-700 bg-purple-100 hover:bg-purple-200 border border-purple-200 rounded-md transition-colors shadow-2xs"
+                            title="Place reflection draft into composer without sending"
+                          >
+                            <span>Use in Composer</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleGenerateSLM}
+                            disabled={slmLoading}
+                            className="px-2.5 py-1 text-xs font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-md transition-colors shadow-2xs"
+                          >
+                            Regenerate
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
               {/* Message Thread */}
               <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
