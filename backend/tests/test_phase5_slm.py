@@ -107,6 +107,14 @@ class TestSLMConfig:
         assert cfg.temperature == 0.3
         assert cfg.max_new_tokens == 64
 
+    def test_display_name_base_model(self):
+        cfg = SLMConfig(model_name=DEFAULT_MODEL_NAME, adapter_path=None)
+        assert cfg.display_name == DEFAULT_MODEL_NAME
+
+    def test_display_name_with_adapter(self):
+        cfg = SLMConfig(model_name=DEFAULT_MODEL_NAME, adapter_path="saved_models/evara_tinyllama_lora")
+        assert cfg.display_name == f"{DEFAULT_MODEL_NAME} + LoRA (saved_models/evara_tinyllama_lora)"
+
 
 # ---------------------------------------------------------------------------
 # Prompting tests
@@ -457,6 +465,16 @@ class TestModelLoading:
 
         unload_model()
         assert not is_model_loaded()
+
+    def test_nonexistent_adapter_raises_runtime_error(self):
+        """If an adapter path is configured but does not exist, RuntimeError is raised."""
+        from app.slm.model import load_model, unload_model
+
+        unload_model()
+        cfg = SLMConfig(adapter_path="nonexistent/directory/that/does/not/exist")
+        with pytest.raises(RuntimeError) as exc_info:
+            load_model(cfg)
+        assert "adapter path does not exist" in str(exc_info.value).lower()
 
 
 # ---------------------------------------------------------------------------

@@ -3,19 +3,17 @@ Dataset Preparation (Phase 5).
 
 Prepares the validated synthetic dataset for SFT training:
   1. Load and validate the JSONL dataset
-  2. Apply train/validation split (default: 80/20)
-  3. Export as separate JSONL files for use with Hugging Face Datasets
+  2. Apply train/validation/test split
+  3. Export as separate JSONL files for use with Hugging Face & PyTorch training
 
 Usage:
     python training/prepare_dataset.py [--input PATH] [--output-dir DIR]
-                                       [--val-split 0.2] [--seed 42]
+                                       [--val-split 0.1] [--test-split 0.1] [--seed 42]
 
 Output files:
     backend/data/processed/train.jsonl
     backend/data/processed/validation.jsonl
-
-The "messages" key in each record is kept as-is (ChatML format),
-compatible with TRL SFTTrainer's apply_chat_template workflow.
+    backend/data/processed/test.jsonl
 """
 
 import argparse
@@ -24,6 +22,9 @@ import random
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+
+_BACKEND_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(_BACKEND_ROOT))
 
 from training.validate_dataset import validate_dataset
 
@@ -48,21 +49,26 @@ def write_jsonl(records: List[Dict[str, Any]], path: Path) -> None:
 def prepare_dataset(
     input_path: str = "data/synthetic/evara_synthetic.jsonl",
     output_dir: str = "data/processed",
-    val_split: float = 0.2,
+    val_split: float = 0.1,
+    test_split: float = 0.0,
     seed: int = 42,
-) -> Tuple[int, int]:
+) -> Tuple[int, ...]:
     """
     Validate, split, and export the dataset.
 
-    Returns:
-        (train_count, val_count)
+    If test_split > 0.0:
+        Splits into train, validation, and test sets.
+        Returns: (train_count, val_count, test_count)
+    Else:
+        Splits into train and validation sets (preserves Phase 5 test contract).
+        Returns: (train_count, val_count)
 
     Raises:
         SystemExit if validation fails.
     """
     passed, report = validate_dataset(input_path)
     if not passed:
-        print(f"Dataset validation FAILED. Cannot prepare. Errors:")
+        print("Dataset validation FAILED. Cannot prepare. Errors:")
         for e in report.get("errors", []):
             print(f"  - {e}")
         sys.exit(1)
@@ -76,25 +82,47 @@ def prepare_dataset(
     rng = random.Random(seed)
     rng.shuffle(records)
 
-    split_idx = max(1, int(len(records) * (1.0 - val_split)))
-    train_records = records[:split_idx]
-    val_records = records[split_idx:]
-
+    total = len(records)
     out = Path(output_dir)
-    write_jsonl(train_records, out / "train.jsonl")
-    write_jsonl(val_records, out / "validation.jsonl")
 
-    print(f"Train:      {len(train_records)} records → {out}/train.jsonl")
-    print(f"Validation: {len(val_records)} records → {out}/validation.jsonl")
+    if test_split > 0.0:
+        test_count = max(1, int(total * test_split))
+        val_count = max(1, int(total * val_split))
+        train_count = total - val_count - test_count
 
-    return len(train_records), len(val_records)
+        train_records = records[:train_count]
+        val_records = records[train_count : train_count + val_count]
+        test_records = records[train_count + val_count :]
+
+        write_jsonl(train_records, out / "train.jsonl")
+        write_jsonl(val_records, out / "validation.jsonl")
+        write_jsonl(test_records, out / "test.jsonl")
+
+        print(f"Train:      {len(train_records)} records -> {out}/train.jsonl")
+        print(f"Validation: {len(val_records)} records -> {out}/validation.jsonl")
+        print(f"Test:       {len(test_records)} records -> {out}/test.jsonl")
+
+        return len(train_records), len(val_records), len(test_records)
+    else:
+        split_idx = max(1, int(total * (1.0 - val_split)))
+        train_records = records[:split_idx]
+        val_records = records[split_idx:]
+
+        write_jsonl(train_records, out / "train.jsonl")
+        write_jsonl(val_records, out / "validation.jsonl")
+
+        print(f"Train:      {len(train_records)} records -> {out}/train.jsonl")
+        print(f"Validation: {len(val_records)} records -> {out}/validation.jsonl")
+
+        return len(train_records), len(val_records)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Prepare EVARA dataset for SFT training.")
     parser.add_argument("--input",      default="data/synthetic/evara_synthetic.jsonl")
     parser.add_argument("--output-dir", default="data/processed")
-    parser.add_argument("--val-split",  type=float, default=0.2, help="Validation fraction (0–1).")
+    parser.add_argument("--val-split",  type=float, default=0.1, help="Validation fraction (0–1).")
+    parser.add_argument("--test-split", type=float, default=0.1, help="Test fraction (0–1).")
     parser.add_argument("--seed",       type=int, default=42)
     args = parser.parse_args()
 
@@ -102,5 +130,6 @@ if __name__ == "__main__":
         input_path=args.input,
         output_dir=args.output_dir,
         val_split=args.val_split,
+        test_split=args.test_split,
         seed=args.seed,
     )

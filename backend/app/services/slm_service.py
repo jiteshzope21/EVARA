@@ -213,7 +213,12 @@ async def generate_slm_response(
 def _build_config(settings: Any) -> SLMConfig:
     """Build an SLMConfig from application settings."""
     model_name = settings.slm_model.strip() if settings.slm_model else DEFAULT_MODEL_NAME
-    return SLMConfig(model_name=model_name)
+    adapter_path = (
+        settings.slm_adapter_path.strip()
+        if getattr(settings, "slm_adapter_path", None)
+        else None
+    )
+    return SLMConfig(model_name=model_name, adapter_path=adapter_path)
 
 
 def _extract_user_text(conversation: Dict[str, Any]) -> str:
@@ -281,7 +286,7 @@ def _mock_inference(context: Any, config: SLMConfig) -> InferenceResult:
 
     return InferenceResult(
         text=text,
-        model=f"{config.model_name} [MOCK]",
+        model=f"{config.display_name} [MOCK]",
         generation_config=config.to_generation_kwargs(),
         validated=True,
         warnings=["This is a mock response (MOCK_SLM=true). No real model was called."],

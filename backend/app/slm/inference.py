@@ -102,7 +102,7 @@ def run_inference(
         )
         return InferenceResult(
             text=URGENT_SAFETY_RESPONSE,
-            model=config.model_name,
+            model=config.display_name,
             generation_config={},
             validated=True,
             warnings=["Urgent safety bypass: deterministic response used."],
@@ -201,7 +201,7 @@ def run_inference(
 
     return InferenceResult(
         text=final_text,
-        model=config.model_name,
+        model=config.display_name,
         generation_config=gen_config,
         validated=validated,
         warnings=warnings,

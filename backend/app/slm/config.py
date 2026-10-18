@@ -126,6 +126,7 @@ class SLMConfig:
     """
 
     model_name: str = DEFAULT_MODEL_NAME
+    adapter_path: Optional[str] = None
     max_input_tokens: int = MAX_INPUT_TOKENS
     max_new_tokens: int = MAX_NEW_TOKENS
     min_new_tokens: int = MIN_NEW_TOKENS
@@ -142,6 +143,13 @@ class SLMConfig:
     # Set at runtime by model.py after device detection — NOT a user-supplied
     # config field; kept here for observability/logging.
     device: Optional[str] = None
+
+    @property
+    def display_name(self) -> str:
+        """User-facing model name distinguishing base model from LoRA adapter."""
+        if self.adapter_path:
+            return f"{self.model_name} + LoRA ({self.adapter_path})"
+        return self.model_name
 
     def to_generation_kwargs(self) -> dict:
         """

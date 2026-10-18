@@ -33,6 +33,7 @@ class Settings(BaseSettings):
 
     # --- SLM (Phase 5: Real SLM + Synthetic Dataset + Fine-Tuning) ---
     slm_model: str = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    slm_adapter_path: str = ""
     mock_slm: bool = True
     hf_token: str = ""
 

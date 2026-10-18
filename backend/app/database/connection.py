@@ -81,6 +81,9 @@ async def _ensure_indexes() -> None:
         [("conversation_id", 1), ("user_id", 1), ("created_at", -1)]
     )
 
+    # Standalone SLM chats — scoped to owner, sorted by updated_at descending.
+    await database.db["slm_conversations"].create_index([("user_id", 1), ("updated_at", -1)])
+
 
 def get_database() -> AsyncIOMotorDatabase:
     """

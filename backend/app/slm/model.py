@@ -28,6 +28,7 @@ _model_lock = threading.Lock()
 _tokenizer = None
 _model = None
 _loaded_model_name: Optional[str] = None
+_loaded_adapter_path: Optional[str] = None
 
 
 def detect_device() -> str:
@@ -62,6 +63,7 @@ def detect_device() -> str:
 def load_model(config: SLMConfig) -> Tuple[object, object]:
     """
     Load the tokenizer and model onto the detected device.
+    Supports base causal LM or base causal LM + fine-tuned PEFT LoRA adapter.
 
     This is a lazy singleton: the first call downloads/loads the model;
     subsequent calls return the already-loaded objects.
@@ -72,11 +74,19 @@ def load_model(config: SLMConfig) -> Tuple[object, object]:
     Returns:
         (tokenizer, model)
     """
-    global _tokenizer, _model, _loaded_model_name
+    global _tokenizer, _model, _loaded_model_name, _loaded_adapter_path
 
     with _model_lock:
-        if _model is not None and _loaded_model_name == config.model_name:
-            logger.debug("SLM already loaded: %s", config.model_name)
+        if (
+            _model is not None
+            and _loaded_model_name == config.model_name
+            and _loaded_adapter_path == config.adapter_path
+        ):
+            logger.debug(
+                "SLM already loaded: %s (adapter: %s)",
+                config.model_name,
+                config.adapter_path,
+            )
             return _tokenizer, _model
 
         logger.info("Loading SLM tokenizer and model: %s", config.model_name)
@@ -123,23 +133,58 @@ def load_model(config: SLMConfig) -> Tuple[object, object]:
                 low_cpu_mem_usage=True,
             )
             model = model.to(device)
-            model.eval()  # inference mode only
 
         except Exception as exc:
             raise RuntimeError(
-                f"Failed to load model '{config.model_name}'. "
+                f"Failed to load base model '{config.model_name}'. "
                 f"Verify the model name, local disk space, and available RAM. "
                 f"Original error: {exc}"
             ) from exc
 
+        # If adapter_path is provided, load the PEFT adapter
+        if config.adapter_path:
+            import os
+
+            adapter_path = config.adapter_path
+            if not os.path.isabs(adapter_path):
+                # Search relative to cwd and relative to project backend root
+                candidates = [
+                    os.path.abspath(adapter_path),
+                    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", adapter_path)),
+                ]
+                for cand in candidates:
+                    if os.path.exists(cand):
+                        adapter_path = cand
+                        break
+
+            if not os.path.exists(adapter_path):
+                raise RuntimeError(
+                    f"Configured SLM adapter path does not exist: {config.adapter_path} (resolved to {adapter_path})"
+                )
+
+            try:
+                from peft import PeftModel
+
+                logger.info("Loading fine-tuned LoRA adapter from: %s", adapter_path)
+                model = PeftModel.from_pretrained(model, adapter_path)
+                logger.info("LoRA adapter loaded successfully onto %s", config.model_name)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Failed to load LoRA adapter from '{adapter_path}'. "
+                    f"Original error: {exc}"
+                ) from exc
+
+        model.eval()  # inference mode only
+
         _tokenizer = tokenizer
         _model = model
         _loaded_model_name = config.model_name
+        _loaded_adapter_path = config.adapter_path
 
         param_count = sum(p.numel() for p in model.parameters()) / 1_000_000
         logger.info(
-            "SLM loaded successfully: %s (%.0fM parameters) on %s",
-            config.model_name,
+            "SLM ready: %s (%.0fM parameters) on %s",
+            config.display_name,
             param_count,
             device,
         )
@@ -151,11 +196,12 @@ def unload_model() -> None:
     Release the loaded model and tokenizer from memory.
     Intended for tests and resource-constrained environments.
     """
-    global _tokenizer, _model, _loaded_model_name
+    global _tokenizer, _model, _loaded_model_name, _loaded_adapter_path
     with _model_lock:
         _tokenizer = None
         _model = None
         _loaded_model_name = None
+        _loaded_adapter_path = None
     logger.info("SLM unloaded from memory.")
 
 
