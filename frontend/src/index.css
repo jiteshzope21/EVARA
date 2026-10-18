@@ -2,8 +2,90 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@layer base {
+  :root {
+    --bg-page: #faf9f6;
+    --bg-surface: #ffffff;
+    --bg-surface-muted: #f4f6f4;
+    --border-subtle: #e6e9e6;
+    --text-primary: #192720;
+    --text-secondary: #526359;
+    --text-muted: #7d8e85;
+    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+    color-scheme: light;
+  }
+
+  .dark {
+    --bg-page: #0d1210;
+    --bg-surface: #131a16;
+    --bg-surface-muted: #1a231e;
+    --border-subtle: #243029;
+    --text-primary: #ecf2ee;
+    --text-secondary: #9cb1a4;
+    --text-muted: #6f8277;
+    color-scheme: dark;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+  }
 }
+
+/* Custom delicate scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5cf;
+  border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #2a3830;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ab0a3;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #3c5045;
+}
+
+/* Focus ring standard utility */
+@layer utilities {
+  .focus-ring {
+    outline: none;
+  }
+  .focus-ring:focus,
+  .focus-ring:focus-visible {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    --tw-ring-offset-shadow: var(--tw-ring-inset, ) 0 0 0 var(--tw-ring-offset-width, 0px) var(--tw-ring-offset-color, #fff);
+    --tw-ring-shadow: var(--tw-ring-inset, ) 0 0 0 calc(2px + var(--tw-ring-offset-width, 0px)) var(--tw-ring-color);
+    box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
+    --tw-ring-color: rgba(52, 107, 78, 0.3);
+    border-color: #346b4e;
+  }
+  .dark .focus-ring:focus,
+  .dark .focus-ring:focus-visible {
+    --tw-ring-offset-color: #0b0f0d;
+    --tw-ring-color: rgba(104, 164, 129, 0.3);
+    border-color: #68a481;
+  }
+}
+
+

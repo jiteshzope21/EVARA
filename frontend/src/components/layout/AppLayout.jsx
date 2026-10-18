@@ -7,7 +7,7 @@ export default function AppLayout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-[#faf9f6] dark:bg-night-950 flex flex-col transition-colors duration-200">
       {/* Top Navigation */}
       <Navbar onToggleSidebar={() => setMobileSidebarOpen((prev) => !prev)} />
 
@@ -27,3 +27,4 @@ export default function AppLayout() {
     </div>
   );
 }
+
